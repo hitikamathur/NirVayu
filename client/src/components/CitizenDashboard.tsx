@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useWards, useGeneratePlan, useAddCredit, useSubmitReport } from "@/hooks/use-wards";
-import { MapPin, Clock, AlertTriangle, Leaf, ShieldCheck, HeartPulse, Camera, Trash2, ShieldAlert, CheckCircle2, Upload, Car, Construction, Factory, Wind, Trees, Loader2, Search } from "lucide-react";
+import { MapPin, Clock, AlertTriangle, Leaf, ShieldCheck, HeartPulse, Camera, Trash2, ShieldAlert, CheckCircle2, Upload, Car, Construction, Factory, Wind, Trees, Loader2, Search, LineChart as LineChartIcon } from "lucide-react";
 import { pollutionBlockchain } from "@/lib/blockchain";
 import { motion } from "framer-motion";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { WardMap } from "./WardMap";
 import { StatusBadge } from "./StatusBadge";
+import { AqiTrendChart } from "./AqiTrendChart";
 import { CaptureEvidence } from "./CaptureEvidence";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -95,73 +96,108 @@ export function CitizenDashboard() {
         />
       </div>
 
-      {/* Row 2: Map + Report Side-by-Side */}
+      {/* Row 2: Map / Chart tabs + Report Side-by-Side */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Map Column */}
-        <Card className="lg:col-span-8 border-border shadow-sm overflow-hidden h-[560px] flex flex-col">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg font-bold flex items-center gap-2">
-                  <MapPin className="text-primary" /> Interactive Ward Map
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Search your neighborhood or click on the map.
-                </CardDescription>
-              </div>
-              <div className="relative w-full md:w-64" onClick={(e) => e.stopPropagation()}>
-                <div className="relative">
-                  <Input
-                    type="text"
-                    placeholder="Search ward..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                    className="w-full pl-9 h-9 text-sm"
-                  />
-                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
-                </div>
-                {showSuggestions && filteredWards.length > 0 && (
-                  <div className="absolute z-[1000] w-full bg-popover border rounded-md shadow-lg max-h-52 overflow-y-auto mt-1">
-                    {filteredWards.map(w => (
-                      <button
-                        key={w.id}
-                        onClick={() => {
-                          setSelectedWardId(w.id);
-                          setSearchQuery(w.name);
-                          setShowSuggestions(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors block border-b last:border-b-0"
-                      >
-                        {w.name} (AQI: {w.aqi})
-                      </button>
-                    ))}
+        {/* Map / Chart Column */}
+        <Tabs defaultValue="map" className="lg:col-span-8 flex flex-col">
+          <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 mb-3">
+            <TabsTrigger value="map" className="gap-2">
+              <MapPin className="w-4 h-4" /> Map View
+            </TabsTrigger>
+            <TabsTrigger value="chart" className="gap-2">
+              <LineChartIcon className="w-4 h-4" /> AQI Trend Chart
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Map Tab */}
+          <TabsContent value="map" className="mt-0">
+            <Card className="border-border shadow-sm overflow-hidden h-[560px] flex flex-col">
+              <CardHeader className="pb-3">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-lg font-bold flex items-center gap-2">
+                      <MapPin className="text-primary" /> Interactive Ward Map
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Search your neighborhood or click on the map.
+                    </CardDescription>
                   </div>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 flex-1 min-h-0">
-            <div className="relative h-full w-full border-t">
-              <WardMap
-                wards={wards}
-                selectedWardId={selectedWardId || undefined}
-                onSelectWard={(id) => {
-                  setSelectedWardId(id);
-                  const w = wards.find(x => x.id === id);
-                  if (w) setSearchQuery(w.name);
-                }}
-                className="absolute inset-0"
+                  <div className="relative w-full md:w-64" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative">
+                      <Input
+                        type="text"
+                        placeholder="Search ward..."
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowSuggestions(true);
+                        }}
+                        onFocus={() => setShowSuggestions(true)}
+                        className="w-full pl-9 h-9 text-sm"
+                      />
+                      <Search className="absolute left-3 top-2.5 w-4 h-4 text-muted-foreground" />
+                    </div>
+                    {showSuggestions && filteredWards.length > 0 && (
+                      <div className="absolute z-[1000] w-full bg-popover border rounded-md shadow-lg max-h-52 overflow-y-auto mt-1">
+                        {filteredWards.map(w => (
+                          <button
+                            key={w.id}
+                            onClick={() => {
+                              setSelectedWardId(w.id);
+                              setSearchQuery(w.name);
+                              setShowSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors block border-b last:border-b-0"
+                          >
+                            {w.name} (AQI: {w.aqi})
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 flex-1 min-h-0">
+                <div className="relative h-full w-full border-t">
+                  <WardMap
+                    wards={wards}
+                    selectedWardId={selectedWardId || undefined}
+                    onSelectWard={(id) => {
+                      setSelectedWardId(id);
+                      const w = wards.find(x => x.id === id);
+                      if (w) setSearchQuery(w.name);
+                    }}
+                    className="absolute inset-0"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Chart Tab — its own dedicated section, always available */}
+          <TabsContent value="chart" className="mt-0">
+            {selectedWard ? (
+              <AqiTrendChart
+                wardId={selectedWard.id}
+                wardName={selectedWard.name}
+                currentAqi={selectedWard.aqi}
               />
-            </div>
-          </CardContent>
-        </Card>
+            ) : (
+              <Card className="border-dashed border-2 border-border h-[560px] flex flex-col items-center justify-center bg-muted/10">
+                <CardContent className="text-center p-8">
+                  <Search className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="text-base font-bold mb-1">No Ward Selected</h3>
+                  <p className="text-sm text-muted-foreground max-w-xs">
+                    Select a ward from the Map View tab or the search bar to view its AQI trend chart.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
 
         {/* Report Panel Column */}
-        <div className="lg:col-span-4 h-[560px]">
+        <div className="lg:col-span-4 h-[560px] lg:mt-[52px]">
           {selectedWard ? (
             <ReportPollutionModule selectedWard={selectedWard} />
           ) : (
@@ -182,7 +218,7 @@ export function CitizenDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column - Ward Info & Safe Life Planner */}
         <div className="lg:col-span-5 space-y-6">
-          {selectedWard ? (
+                    {selectedWard ? (
             <div className="bg-card rounded-2xl p-6 shadow-sm border border-border/50 space-y-6">
               <div>
                 <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1 mb-2">
@@ -471,7 +507,6 @@ function SafeLifePlanner({ wardId }: { wardId: number }) {
     </Card>
   );
 }
-
 function ReportPollutionModule({ selectedWard }: { selectedWard: any }) {
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState("");
@@ -744,4 +779,3 @@ function ReportPollutionModule({ selectedWard }: { selectedWard: any }) {
     </Card>
   );
 }
-

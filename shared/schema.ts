@@ -165,6 +165,16 @@ export const simulationResultSchema = z.object({
 
 export type SimulationResult = z.infer<typeof simulationResultSchema>;
 
+// AQI trend history — served per ward for the trend chart. Kept in-memory
+// alongside the rest of ward state (see server/storage.ts); not a DB table
+// since this project runs entirely off MemStorage.
+export interface AqiHistoryPoint {
+  timestamp: string; // ISO 8601
+  aqi: number;
+  pm25: number;
+  pm10: number;
+}
+
 export interface CitizenPlanRequest {
   ageGroup: "child" | "adult" | "elderly";
   condition: "healthy" | "asthma" | "sensitive";

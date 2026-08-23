@@ -1,4 +1,4 @@
-import { type Ward, type User, type InsertUser, type Report, type InsertReport, type Evidence, type InsertEvidence } from "@shared/schema";
+import { type Ward, type User, type InsertUser, type Report, type InsertReport, type Evidence, type InsertEvidence, type AqiHistoryPoint } from "@shared/schema";
 import fs from "fs";
 import path from "path";
 import * as turf from "@turf/turf";
@@ -6,6 +6,11 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const MemoryStore = createMemoryStore(session);
 const execFilePromise = promisify(execFile);
@@ -19,6 +24,7 @@ export interface IStorage {
   getWard(id: number): Promise<Ward | undefined>;
   updateWard(id: number, ward: Partial<Ward>): Promise<Ward>;
   getLastUpdated(): Promise<Date>;
+  getWardHistory(id: number, hours?: number): Promise<AqiHistoryPoint[]>;
 
   // Reports
   createReport(report: Omit<Report, "id" | "timestamp" | "verified">): Promise<Report>;
@@ -92,6 +98,10 @@ function predictFutureAqi(currentAqi: number, pm25: number, pm10: number): { pre
   };
 }
 
+// How many hours of AQI history to retain per ward before trimming old points
+const HISTORY_RETENTION_HOURS = 48;
+// Backfill window so trend charts aren't empty on first load / demo
+const HISTORY_SEED_HOURS = 24;
 
 export class MemStorage implements IStorage {
   private users = new Map<string, User>();
@@ -101,6 +111,7 @@ export class MemStorage implements IStorage {
   private reportIdCounter = 1;
   private evidenceIdCounter = 1;
   private lastUpdated = new Date();
+  private history = new Map<number, AqiHistoryPoint[]>();
   public sessionStore: session.Store;
 
   constructor() {
@@ -225,7 +236,59 @@ export class MemStorage implements IStorage {
         citizen_credits: 0,
         intelligence_data
       });
+
+      // Backfill a plausible history so the trend chart isn't empty before the
+      // first few live AQI refresh cycles complete. Clearly a synthetic seed —
+      // real points get appended by updatePollutionData() going forward.
+      this.seedHistory(id, aqi, pm25, pm10);
     });
+  }
+
+  // Generates a deterministic, diurnally-shaped backfill (rush-hour bumps,
+  // overnight dip) so a ward's trend chart has a full 24h line immediately,
+  // instead of showing a single dot until real data accumulates.
+  private seedHistory(wardId: number, baseAqi: number, basePm25: number, basePm10: number) {
+    const points: AqiHistoryPoint[] = [];
+    const now = Date.now();
+    for (let i = HISTORY_SEED_HOURS; i >= 0; i--) {
+      const timestamp = new Date(now - i * 60 * 60 * 1000);
+      const hour = timestamp.getHours();
+      const rushFactor = (hour >= 7 && hour <= 10) || (hour >= 17 && hour <= 20) ? 1.12 : 1.0;
+      const nightFactor = hour >= 23 || hour <= 5 ? 0.85 : 1.0;
+      // Small deterministic wobble so the line isn't a perfectly smooth curve
+      const wobble = 0.96 + (((wardId * 7 + i * 13) % 9) / 100);
+      const factor = rushFactor * nightFactor * wobble;
+      points.push({
+        timestamp: timestamp.toISOString(),
+        aqi: Math.max(0, Math.round(baseAqi * factor)),
+        pm25: Math.max(0, Math.round(basePm25 * factor)),
+        pm10: Math.max(0, Math.round(basePm10 * factor)),
+      });
+    }
+    this.history.set(wardId, points);
+  }
+
+  // Appends a real snapshot for a ward and trims anything older than the
+  // retention window. Called every time live/estimated AQI data is refreshed.
+  private recordHistoryPoint(wardId: number, aqi: number, pm25: number, pm10: number) {
+    const existing = this.history.get(wardId) ?? [];
+    existing.push({
+      timestamp: new Date().toISOString(),
+      aqi,
+      pm25,
+      pm10,
+    });
+    const cutoff = Date.now() - HISTORY_RETENTION_HOURS * 60 * 60 * 1000;
+    const trimmed = existing.filter(p => new Date(p.timestamp).getTime() >= cutoff);
+    this.history.set(wardId, trimmed);
+  }
+
+  async getWardHistory(id: number, hours: number = 24) {
+    const points = this.history.get(id) ?? [];
+    const cutoff = Date.now() - hours * 60 * 60 * 1000;
+    return points
+      .filter(p => new Date(p.timestamp).getTime() >= cutoff)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }
 
   public async updatePollutionData() {
@@ -330,6 +393,7 @@ export class MemStorage implements IStorage {
           }
 
           this.wards.set(id, updatedWard);
+          this.recordHistoryPoint(id, aqi, pm25, pm10);
           console.log(`[AQI] ${ward.name} → ${aqi} (live)`);
         }
       } catch (err) {
@@ -372,6 +436,7 @@ export class MemStorage implements IStorage {
             intelligence_data: nearestWard.intelligence_data as any,
             dominant_source: nearestWard.dominant_source
           });
+          this.recordHistoryPoint(id, estimatedAqi, nearestWard.pm25, nearestWard.pm10);
           console.log(`[AQI] ${ward.name} → ${estimatedAqi} (estimated from ${nearestWard.name})`);
         }
       }

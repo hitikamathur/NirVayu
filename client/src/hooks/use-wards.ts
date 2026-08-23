@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
-import { type Ward, type SimulationResult, type CitizenPlanResponse, type CitizenPlanRequest, type SimulationRequest } from "@shared/schema";
+import { type Ward, type SimulationResult, type CitizenPlanResponse, type CitizenPlanRequest, type SimulationRequest, type AqiHistoryPoint } from "@shared/schema";
 
 // Helper for type-safe fetch with schema validation
 async function fetchAndValidate<T>(url: string, schema: any): Promise<T> {
@@ -33,6 +33,23 @@ export function useWard(id: number) {
     },
     enabled: !!id,
     refetchInterval: 10000, // Faster poll for active ward
+  });
+}
+
+// GET /api/wards/:id/history
+export function useWardHistory(id: number | undefined, hours: number = 24) {
+  return useQuery({
+    queryKey: ["ward-history", id, hours],
+    queryFn: async () => {
+      const url = buildUrl(api.wards.history.path, { id: id! }) + `?hours=${hours}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`Failed to fetch ward history: ${res.statusText}`);
+      const data = await res.json();
+      return api.wards.history.responses[200].parse(data) as AqiHistoryPoint[];
+    },
+    enabled: !!id,
+    // History changes slowly relative to live AQI — no need to poll as fast as useWard
+    refetchInterval: 60000,
   });
 }
 

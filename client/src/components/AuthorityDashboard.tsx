@@ -17,6 +17,7 @@ import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Bar, Cell } from 
 import { cn } from "@/lib/utils";
 import { WardMap } from "./WardMap";
 import { StatusBadge } from "./StatusBadge";
+import { AqiTrendChart } from "./AqiTrendChart";
 import { useToast } from "@/hooks/use-toast";
 
 import { ControlType, SimulationRequest } from "@shared/schema";
@@ -140,14 +141,23 @@ export function AuthorityDashboard() {
 
             {/* Main Tabs */}
             <Tabs defaultValue="intelligence" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1">
+              <TabsList className="grid w-full grid-cols-4 bg-muted/50 p-1">
                 <TabsTrigger value="intelligence">AI Intel</TabsTrigger>
+                <TabsTrigger value="trend">Trend</TabsTrigger>
                 <TabsTrigger value="simulation">Policy Simulation</TabsTrigger>
                 <TabsTrigger value="reports">Citizen Reports</TabsTrigger>
               </TabsList>
               
               <TabsContent value="intelligence" className="mt-6">
                 <IntelligencePanel wardId={selectedWard.id} />
+              </TabsContent>
+
+              <TabsContent value="trend" className="mt-6">
+                <AqiTrendChart
+                  wardId={selectedWard.id}
+                  wardName={selectedWard.name}
+                  currentAqi={selectedWard.aqi}
+                />
               </TabsContent>
               
               <TabsContent value="simulation" className="mt-6">

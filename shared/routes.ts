@@ -31,6 +31,19 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    history: {
+      method: 'GET' as const,
+      path: '/api/wards/:id/history',
+      responses: {
+        200: z.array(z.object({
+          timestamp: z.string(),
+          aqi: z.number(),
+          pm25: z.number(),
+          pm10: z.number(),
+        })),
+        404: errorSchemas.notFound,
+      },
+    },
     updateControls: {
       method: 'POST' as const,
       path: '/api/wards/:id/controls',

@@ -36,6 +36,15 @@ export async function registerRoutes(
     res.json({ wards, lastUpdated });
   });
 
+  app.get(api.wards.history.path, async (req, res) => {
+    const ward = await storage.getWard(Number(req.params.id));
+    if (!ward) return res.status(404).json({ message: "Ward not found" });
+    const hoursParam = Number(req.query.hours);
+    const hours = Number.isFinite(hoursParam) && hoursParam > 0 ? hoursParam : 24;
+    const history = await storage.getWardHistory(ward.id, hours);
+    res.json(history);
+  });
+
   // === Pollution Reports ===
 
   app.post("/api/reports", async (req, res) => {
